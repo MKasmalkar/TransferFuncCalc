@@ -5,6 +5,8 @@ import sympy as sp
 import sys
 
 filename = sys.argv[1]
+input_var = sys.argv[2]
+output_var = sys.argv[3]
 
 sp.init_printing()
 
@@ -133,13 +135,37 @@ def solve_equations(output_var):
     sol = sp.solve(equations, output_var)
     return sol
 
+def find_transfer_function(input_var, output_var):
+    input_sym = sp.symbols(input_var)
+    output_sym = sp.symbols(output_var)
+
+    input_var_expression = sols[input_sym]
+    output_var_expression = sols[output_sym]
+
+    transfer_func = output_var_expression / input_var_expression
+    return transfer_func
+
 def print_equations():
+    print("EQUATIONS ============================================================")
     for eq in equations:
         sp.pprint(eq)
+    print()
 
 def print_sols(sols):
+    print("SOLUTIONS ============================================================")
     for sol in sols:
         sp.pprint(sp.Eq(sol, sols[sol]))
+    print()
+
+def print_transfer_func(input_var, output_var, transfer_func):
+    print("TRANSFER FUNCTION ====================================================")
+    
+    input_sym = sp.symbols(input_var)
+    output_sym = sp.symbols(output_var)
+
+    sp.pprint(sp.Eq(output_sym / input_sym, transfer_func))
+
+    print()
 
 with open(filename) as netlist_file:
     lines = netlist_file.readlines()
@@ -154,3 +180,6 @@ with open(filename) as netlist_file:
 
     sols = solve_equations(unknowns)
     print_sols(sols)
+
+    transfer_func = find_transfer_function(input_var, output_var)
+    print_transfer_func(input_var, output_var, transfer_func)
