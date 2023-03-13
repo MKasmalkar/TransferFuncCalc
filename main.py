@@ -24,6 +24,8 @@ equations = []
 
 unknowns = []
 
+values = {}
+
 # Laplace variable
 s = sp.symbols("s")
 
@@ -48,6 +50,50 @@ def add_voltage_source(Vnode_1, Vnode_2, Vsrc_symbol, Vsrc_current):
     equations.append(voltage_constraint)
     unknowns.append(Vsrc_current)
 
+def add_component(component, value):
+
+    value = value.lower()
+
+    # replace the "mu" symbol used for "micro"
+    # with the letter "u"
+    value = value.replace("µ", "u")
+
+    value = value.strip("h")
+    value = value.strip("f")
+    value = value.strip("r")
+    value = value.strip("v")
+    value = value.strip("a")
+    
+    parsed_val = 0
+
+    if value.isnumeric():
+        parsed_val = int(value)
+    elif value.endswith("meg"):
+        parsed_val = int(value[:-3]) * 10**6
+    elif value.endswith("mil"):
+        parsed_val = int(value[:-3]) * 25.4 * 10**-6
+    elif value.endswith("t"):
+        parsed_val = int(value[:-1]) * 10**12
+    elif value.endswith("g"):
+        parsed_val = int(value[:-1])* 10**9
+    elif value.endswith("k"):
+        parsed_val = int(value[:-1]) * 10**3
+    elif value.endswith("m"):
+        parsed_val = int(value[:-1]) * 10**-3
+    elif value.endswith("u"):
+        parsed_val = int(value[:-1]) * 10**-6
+    elif value.endswith("n"):
+        parsed_val = int(value[:-1]) * 10**-9
+    elif value.endswith("p"):
+        parsed_val = int(value[:-1]) * 10**-12
+    elif value.endswith("f"):
+        parsed_val = int(value[:-1]) * 10**-15
+    else:
+        raise ValueError("Could not interpret value " + value + " for component " + component)
+    
+    values[component] = parsed_val
+
+
 def handle_spice_line(line):
 
     if line[0] in TO_IGNORE:
@@ -66,6 +112,7 @@ def handle_spice_line(line):
         name = line[0]
         node_1 = line[1]
         node_2 = line[2]
+        value = line[3]
         
         Vnode_1 = sp.symbols("V" + node_1) if node_1 != "0" else 0
         Vnode_2 = sp.symbols("V" + node_2) if node_2 != "0" else 0
@@ -87,10 +134,13 @@ def handle_spice_line(line):
         add_negative_current_to_node(node_1, I)
         add_positive_current_to_node(node_2, I)
 
+        add_component(name, value)
+
     elif component_type == "V":
         name = line[0]
         node_1 = line[1]
         node_2 = line[2]
+        value = line[3]
 
         Vnode_1 = sp.symbols("V" + node_1) if node_1 != "0" else 0
         Vnode_2 = sp.symbols("V" + node_2) if node_2 != "0" else 0
@@ -107,11 +157,14 @@ def handle_spice_line(line):
 
         add_voltage_source(Vnode_1, Vnode_2, symbol, I)
 
+        add_component(name, value)
+
 
     elif component_type == "I":
         name = line[0]
         node_1 = line[1]
         node_2 = line[2]
+        value = line[3]
 
         I = sp.symbols("I" + name)
 
@@ -120,7 +173,9 @@ def handle_spice_line(line):
         # NEGATIVE current for node 1 and
         # POSITIVE current for node 2
         add_negative_current_to_node(node_1, I)
-        add_positive_current_to_node(node_2, I)        
+        add_positive_current_to_node(node_2, I)
+
+        add_component(name, value)     
 
 
 def generate_KCL_equations():
@@ -167,13 +222,37 @@ def print_transfer_func(input_var, output_var, transfer_func):
 
     print()
 
+def print_component_values():
+    print("COMPONENTS ==========================================================")
+
+    for component in values.keys():
+        print(component + " has a value of " + str(values[component]), end='')
+
+        if component.startswith("R"):
+            print(" ohms")
+        elif component.startswith("L"):
+            print(" H")
+        elif component.startswith("C"):
+            print(" C")
+        elif component.startswith("V"):
+            print(" V")
+        elif component.startswith("I"):
+            print(" A")
+        else:
+            print()
+    print()
+
+
 with open(filename) as netlist_file:
     lines = netlist_file.readlines()
 
     for line in lines:
         tokens = line.split(" ")
+        tokens = [token.strip() for token in tokens]
         
         handle_spice_line(tokens)
+
+    print_component_values()
 
     generate_KCL_equations()
     print_equations()
@@ -183,3 +262,4 @@ with open(filename) as netlist_file:
 
     transfer_func = find_transfer_function(input_var, output_var)
     print_transfer_func(input_var, output_var, transfer_func)
+
